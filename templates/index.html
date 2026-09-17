@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>PokeInventory</title>
 
@@ -27,6 +30,79 @@
 
         h1 {
             margin: 0 0 20px;
+        }
+
+        .search-section {
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .search-input {
+            width: 100%;
+            min-height: 42px;
+            padding: 8px 12px;
+            border: 1px solid black;
+            background: white;
+            color: black;
+            font-size: 15px;
+        }
+
+        .search-results {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 44px;
+            z-index: 1000;
+            background: white;
+            border: 1px solid black;
+            max-height: 400px;
+            overflow-y: auto;
+            display: none;
+        }
+
+        .search-result {
+            display: grid;
+            grid-template-columns:
+                100px
+                90px
+                1fr
+                150px;
+            gap: 10px;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid black;
+            cursor: pointer;
+        }
+
+        .search-result:last-child {
+            border-bottom: 0;
+        }
+
+        .search-result:hover {
+            background: black;
+            color: white;
+        }
+
+        .search-code {
+            font-weight: bold;
+        }
+
+        .search-name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .search-set {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .search-rarity {
+            text-align: right;
+        }
+
+        .search-empty {
+            padding: 12px;
         }
 
         .form {
@@ -140,6 +216,19 @@
             padding: 4px 10px;
         }
 
+        @media (max-width: 1000px) {
+            .search-result {
+                grid-template-columns:
+                    100px
+                    90px
+                    1fr;
+            }
+
+            .search-rarity {
+                display: none;
+            }
+        }
+
         @media (max-width: 900px) {
             body {
                 padding: 10px;
@@ -158,6 +247,15 @@
             h1 {
                 font-size: 24px;
             }
+
+            .search-result {
+                grid-template-columns:
+                    80px
+                    70px
+                    1fr;
+                gap: 6px;
+                font-size: 13px;
+            }
         }
     </style>
 </head>
@@ -167,6 +265,23 @@
 <div class="container">
 
     <h1>PokeInventory</h1>
+
+    <div class="search-section">
+
+        <input
+            id="cardSearch"
+            class="search-input"
+            type="text"
+            autocomplete="off"
+            placeholder="Search cards: Pikachu, 1/163, BLK 1/172..."
+        >
+
+        <div
+            id="searchResults"
+            class="search-results"
+        ></div>
+
+    </div>
 
     <div class="form">
 
@@ -228,17 +343,23 @@
             placeholder="Price"
         >
 
-        <button onclick="addCard()">ADD</button>
+        <button onclick="addCard()">
+            ADD
+        </button>
 
     </div>
 
-    <div id="status" class="status"></div>
+    <div
+        id="status"
+        class="status"
+    ></div>
 
     <div class="table-wrapper">
 
         <table>
 
             <thead>
+
                 <tr>
                     <th>Card Number</th>
                     <th>Name</th>
@@ -250,6 +371,7 @@
                     <th>Price</th>
                     <th>Actions</th>
                 </tr>
+
             </thead>
 
             <tbody id="inventoryBody"></tbody>
@@ -261,143 +383,468 @@
 </div>
 
 <script>
-const cardNumber = document.getElementById("cardNumber");
-const cardName = document.getElementById("cardName");
-const cardSet = document.getElementById("cardSet");
-const rarity = document.getElementById("rarity");
-const condition = document.getElementById("condition");
-const variant = document.getElementById("variant");
-const quantity = document.getElementById("quantity");
-const price = document.getElementById("price");
-const statusElement = document.getElementById("status");
-const inventoryBody = document.getElementById("inventoryBody");
+const cardSearch =
+    document.getElementById("cardSearch");
+
+const searchResults =
+    document.getElementById("searchResults");
+
+const cardNumber =
+    document.getElementById("cardNumber");
+
+const cardName =
+    document.getElementById("cardName");
+
+const cardSet =
+    document.getElementById("cardSet");
+
+const rarity =
+    document.getElementById("rarity");
+
+const condition =
+    document.getElementById("condition");
+
+const variant =
+    document.getElementById("variant");
+
+const quantity =
+    document.getElementById("quantity");
+
+const price =
+    document.getElementById("price");
+
+const statusElement =
+    document.getElementById("status");
+
+const inventoryBody =
+    document.getElementById("inventoryBody");
+
 
 let lookupTimeout;
+let searchTimeout;
 
-cardNumber.addEventListener("input", () => {
-    clearTimeout(lookupTimeout);
-    lookupTimeout = setTimeout(findCard, 300);
-});
+
+cardNumber.addEventListener(
+    "input",
+    () => {
+
+        clearTimeout(
+            lookupTimeout
+        );
+
+        lookupTimeout = setTimeout(
+            findCard,
+            300
+        );
+    }
+);
+
 
 async function findCard() {
-    const value = cardNumber.value.trim();
+
+    const value =
+        cardNumber.value.trim();
 
     if (!value) {
+
         cardName.value = "";
         cardSet.value = "";
         rarity.value = "";
+
+        return;
+    }
+
+    if (!value.includes(" ")) {
         return;
     }
 
     try {
-        const response = await fetch(
-            `/api/card?number=${encodeURIComponent(value)}`
-        );
 
-        const data = await response.json();
+        const response =
+            await fetch(
+                `/api/card?number=${encodeURIComponent(value)}`
+            );
+
+        const data =
+            await response.json();
 
         if (!data.success) {
+
             cardName.value = "";
             cardSet.value = "";
             rarity.value = "";
-            statusElement.textContent = "Card not found";
+
             return;
         }
 
-        cardName.value = data.card.name || "";
-        cardSet.value = data.card.set || "";
-        rarity.value = data.card.rarity || "";
+        fillCardForm(
+            data.card
+        );
 
         statusElement.textContent = "";
 
     } catch {
-        statusElement.textContent = "Error finding card";
+
+        statusElement.textContent =
+            "Error finding card";
     }
 }
 
-async function addCard() {
-    const data = {
-        card_number: cardNumber.value.trim(),
-        condition: condition.value,
-        variant: variant.value,
-        quantity: Number(quantity.value),
-        price: Number(price.value)
-    };
 
-    if (!data.card_number) {
-        statusElement.textContent = "Enter a card number";
+cardSearch.addEventListener(
+    "input",
+    () => {
+
+        clearTimeout(
+            searchTimeout
+        );
+
+        const value =
+            cardSearch.value.trim();
+
+        if (!value) {
+
+            hideSearchResults();
+
+            return;
+        }
+
+        searchTimeout = setTimeout(
+            searchCards,
+            200
+        );
+    }
+);
+
+
+async function searchCards() {
+
+    const query =
+        cardSearch.value.trim();
+
+    if (!query) {
+
+        hideSearchResults();
+
         return;
     }
 
     try {
-        const response = await fetch("/api/inventory", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(data)
-        });
 
-        const result = await response.json();
+        const response =
+            await fetch(
+                `/api/cards/search?q=${encodeURIComponent(query)}&limit=50`
+            );
 
-        if (!result.success) {
-            statusElement.textContent = result.error;
+        const data =
+            await response.json();
+
+        if (!data.success) {
+
+            hideSearchResults();
+
             return;
         }
 
-        statusElement.textContent = "Card added";
-
-        clearForm();
-        await loadInventory();
+        renderSearchResults(
+            data.results
+        );
 
     } catch {
-        statusElement.textContent = "Error adding card";
+
+        searchResults.innerHTML =
+            `<div class="search-empty">
+                Search error
+            </div>`;
+
+        searchResults.style.display =
+            "block";
     }
 }
 
-async function updateCell(id, field, value) {
-    try {
-        const response = await fetch(
-            `/api/inventory/${encodeURIComponent(id)}`,
-            {
-                method: "PATCH",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    field: field,
-                    value: String(value)
-                })
+
+function renderSearchResults(results) {
+
+    searchResults.innerHTML = "";
+
+    if (!results.length) {
+
+        const empty =
+            document.createElement("div");
+
+        empty.className =
+            "search-empty";
+
+        empty.textContent =
+            "No cards found";
+
+        searchResults.appendChild(
+            empty
+        );
+
+        searchResults.style.display =
+            "block";
+
+        return;
+    }
+
+    for (const card of results) {
+
+        const result =
+            document.createElement("div");
+
+        result.className =
+            "search-result";
+
+        const code =
+            document.createElement("div");
+
+        code.className =
+            "search-code";
+
+        code.textContent =
+            card.set_code || "";
+
+        const number =
+            document.createElement("div");
+
+        number.textContent =
+            card.number || "";
+
+        const name =
+            document.createElement("div");
+
+        name.className =
+            "search-name";
+
+        name.textContent =
+            card.name || "Unknown";
+
+        const rarity =
+            document.createElement("div");
+
+        rarity.className =
+            "search-rarity";
+
+        rarity.textContent =
+            card.rarity || "";
+
+        result.appendChild(code);
+        result.appendChild(number);
+        result.appendChild(name);
+        result.appendChild(rarity);
+
+        result.addEventListener(
+            "click",
+            () => {
+
+                fillCardForm(card);
+
+                cardSearch.value =
+                    `${card.set_code} ${card.number}`;
+
+                hideSearchResults();
+
+                statusElement.textContent =
+                    "Card selected";
             }
         );
 
-        const data = await response.json();
+        searchResults.appendChild(
+            result
+        );
+    }
+
+    searchResults.style.display =
+        "block";
+}
+
+
+function fillCardForm(card) {
+
+    cardNumber.value =
+        `${card.set_code || ""} ${card.number || ""}`.trim();
+
+    cardName.value =
+        card.name || "";
+
+    cardSet.value =
+        card.set || card.set_code || "";
+
+    rarity.value =
+        card.rarity || "";
+}
+
+
+function hideSearchResults() {
+
+    searchResults.style.display =
+        "none";
+}
+
+
+document.addEventListener(
+    "click",
+    event => {
+
+        if (
+            !event.target.closest(
+                ".search-section"
+            )
+        ) {
+            hideSearchResults();
+        }
+    }
+);
+
+
+async function addCard() {
+
+    const data = {
+
+        card_number:
+            cardNumber.value.trim(),
+
+        condition:
+            condition.value,
+
+        variant:
+            variant.value,
+
+        quantity:
+            Number(quantity.value),
+
+        price:
+            Number(price.value)
+    };
+
+    if (!data.card_number) {
+
+        statusElement.textContent =
+            "Enter a card number";
+
+        return;
+    }
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/inventory",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify(data)
+                }
+            );
+
+        const result =
+            await response.json();
+
+        if (!result.success) {
+
+            statusElement.textContent =
+                result.error;
+
+            return;
+        }
+
+        statusElement.textContent =
+            "Card added";
+
+        clearForm();
+
+        await loadInventory();
+
+    } catch {
+
+        statusElement.textContent =
+            "Error adding card";
+    }
+}
+
+
+async function updateCell(
+    id,
+    field,
+    value
+) {
+
+    try {
+
+        const response =
+            await fetch(
+                `/api/inventory/${encodeURIComponent(id)}`,
+                {
+                    method: "PATCH",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body:
+                        JSON.stringify({
+                            field: field,
+                            value: String(value)
+                        })
+                }
+            );
+
+        const data =
+            await response.json();
 
         if (!data.success) {
-            statusElement.textContent = data.error;
+
+            statusElement.textContent =
+                data.error;
+
             return false;
         }
 
         return true;
 
     } catch {
-        statusElement.textContent = "Error saving";
+
+        statusElement.textContent =
+            "Error saving";
+
         return false;
     }
 }
 
-function makeEditable(cell, id, field, value) {
+
+function makeEditable(
+    cell,
+    id,
+    field,
+    value
+) {
+
     if (cell.querySelector("input")) {
         return;
     }
 
-    const input = document.createElement("input");
+    const input =
+        document.createElement("input");
 
-    input.className = "cell-input";
-    input.value = value ?? "";
+    input.className =
+        "cell-input";
+
+    input.value =
+        value ?? "";
 
     cell.innerHTML = "";
-    cell.appendChild(input);
+
+    cell.appendChild(
+        input
+    );
 
     input.focus();
     input.select();
@@ -405,134 +852,222 @@ function makeEditable(cell, id, field, value) {
     let saved = false;
 
     async function save() {
+
         if (saved) {
             return;
         }
 
         saved = true;
 
-        const newValue = input.value;
+        const newValue =
+            input.value;
 
-        const success = await updateCell(
-            id,
-            field,
-            newValue
-        );
+        const success =
+            await updateCell(
+                id,
+                field,
+                newValue
+            );
 
         if (success) {
-            cell.textContent = newValue;
+
+            cell.textContent =
+                newValue;
+
         } else {
-            cell.textContent = value ?? "";
+
+            cell.textContent =
+                value ?? "";
         }
     }
 
-    input.addEventListener("blur", save);
+    input.addEventListener(
+        "blur",
+        save
+    );
 
-    input.addEventListener("keydown", event => {
-        if (event.key === "Enter") {
-            input.blur();
-        }
+    input.addEventListener(
+        "keydown",
+        event => {
 
-        if (event.key === "Escape") {
-            saved = true;
-            cell.textContent = value ?? "";
+            if (event.key === "Enter") {
+                input.blur();
+            }
+
+            if (event.key === "Escape") {
+
+                saved = true;
+
+                cell.textContent =
+                    value ?? "";
+            }
         }
-    });
+    );
 }
 
-async function changeQuantity(id, currentQuantity, amount, valueElement) {
-    const newQuantity = Math.max(
-        0,
-        Number(currentQuantity) + amount
-    );
 
-    const success = await updateCell(
-        id,
-        "quantity",
-        newQuantity
-    );
+async function changeQuantity(
+    id,
+    currentQuantity,
+    amount,
+    valueElement
+) {
+
+    const newQuantity =
+        Math.max(
+            0,
+            Number(currentQuantity) + amount
+        );
+
+    const success =
+        await updateCell(
+            id,
+            "quantity",
+            newQuantity
+        );
 
     if (success) {
-        valueElement.textContent = newQuantity;
+
+        valueElement.textContent =
+            newQuantity;
     }
 }
 
-function createEditableCell(row, item, field) {
-    const cell = document.createElement("td");
 
-    cell.className = "editable";
+function createEditableCell(
+    row,
+    item,
+    field
+) {
 
-    cell.textContent = item[field] ?? "";
+    const cell =
+        document.createElement("td");
 
-    cell.addEventListener("click", () => {
-        makeEditable(
-            cell,
-            item.id,
-            field,
-            item[field] ?? ""
-        );
-    });
+    cell.className =
+        "editable";
 
-    row.appendChild(cell);
+    cell.textContent =
+        item[field] ?? "";
+
+    cell.addEventListener(
+        "click",
+        () => {
+
+            makeEditable(
+                cell,
+                item.id,
+                field,
+                item[field] ?? ""
+            );
+        }
+    );
+
+    row.appendChild(
+        cell
+    );
 }
 
-function createQuantityCell(row, item) {
-    const cell = document.createElement("td");
 
-    const wrapper = document.createElement("div");
-    wrapper.className = "quantity";
+function createQuantityCell(
+    row,
+    item
+) {
 
-    const minus = document.createElement("button");
+    const cell =
+        document.createElement("td");
+
+    const wrapper =
+        document.createElement("div");
+
+    wrapper.className =
+        "quantity";
+
+    const minus =
+        document.createElement("button");
+
     minus.textContent = "−";
 
-    const value = document.createElement("div");
-    value.className = "quantity-value";
-    value.textContent = item.quantity;
+    const value =
+        document.createElement("div");
 
-    const plus = document.createElement("button");
+    value.className =
+        "quantity-value";
+
+    value.textContent =
+        item.quantity;
+
+    const plus =
+        document.createElement("button");
+
     plus.textContent = "+";
 
-    minus.addEventListener("click", () => {
-        changeQuantity(
-            item.id,
-            Number(value.textContent),
-            -1,
-            value
-        );
-    });
+    minus.addEventListener(
+        "click",
+        () => {
 
-    plus.addEventListener("click", () => {
-        changeQuantity(
-            item.id,
-            Number(value.textContent),
-            1,
-            value
-        );
-    });
+            changeQuantity(
+                item.id,
+                Number(value.textContent),
+                -1,
+                value
+            );
+        }
+    );
+
+    plus.addEventListener(
+        "click",
+        () => {
+
+            changeQuantity(
+                item.id,
+                Number(value.textContent),
+                1,
+                value
+            );
+        }
+    );
 
     wrapper.appendChild(minus);
     wrapper.appendChild(value);
     wrapper.appendChild(plus);
 
-    cell.appendChild(wrapper);
+    cell.appendChild(
+        wrapper
+    );
 
-    row.appendChild(cell);
+    row.appendChild(
+        cell
+    );
 }
 
-async function loadInventory() {
-    try {
-        const response = await fetch("/api/inventory");
-        const data = await response.json();
 
-        inventoryBody.innerHTML = "";
+async function loadInventory() {
+
+    try {
+
+        const response =
+            await fetch(
+                "/api/inventory"
+            );
+
+        const data =
+            await response.json();
+
+        inventoryBody.innerHTML =
+            "";
 
         if (!data.success) {
-            statusElement.textContent = "Could not load inventory";
+
+            statusElement.textContent =
+                "Could not load inventory";
+
             return;
         }
 
         for (const item of data.inventory) {
-            const row = document.createElement("tr");
+
+            const row =
+                document.createElement("tr");
 
             createEditableCell(
                 row,
@@ -570,7 +1105,10 @@ async function loadInventory() {
                 "variant"
             );
 
-            createQuantityCell(row, item);
+            createQuantityCell(
+                row,
+                item
+            );
 
             createEditableCell(
                 row,
@@ -578,44 +1116,67 @@ async function loadInventory() {
                 "price"
             );
 
-            const actions = document.createElement("td");
+            const actions =
+                document.createElement("td");
 
-            const deleteButton = document.createElement("button");
+            const deleteButton =
+                document.createElement("button");
 
-            deleteButton.className = "delete-button";
-            deleteButton.textContent = "DELETE";
+            deleteButton.className =
+                "delete-button";
 
-            deleteButton.addEventListener("click", () => {
-                deleteCard(item.id);
-            });
+            deleteButton.textContent =
+                "DELETE";
 
-            actions.appendChild(deleteButton);
-            row.appendChild(actions);
+            deleteButton.addEventListener(
+                "click",
+                () => {
+                    deleteCard(item.id);
+                }
+            );
 
-            inventoryBody.appendChild(row);
+            actions.appendChild(
+                deleteButton
+            );
+
+            row.appendChild(
+                actions
+            );
+
+            inventoryBody.appendChild(
+                row
+            );
         }
 
     } catch {
-        statusElement.textContent = "Error loading inventory";
+
+        statusElement.textContent =
+            "Error loading inventory";
     }
 }
 
-async function deleteCard(id) {
-    const response = await fetch(
-        `/api/inventory/${encodeURIComponent(id)}`,
-        {
-            method: "DELETE"
-        }
-    );
 
-    const data = await response.json();
+async function deleteCard(id) {
+
+    const response =
+        await fetch(
+            `/api/inventory/${encodeURIComponent(id)}`,
+            {
+                method: "DELETE"
+            }
+        );
+
+    const data =
+        await response.json();
 
     if (data.success) {
         await loadInventory();
     }
 }
 
+
 function clearForm() {
+
     cardNumber.value = "";
     cardName.value = "";
     cardSet.value = "";
@@ -624,35 +1185,77 @@ function clearForm() {
     price.value = "0";
 }
 
+
 loadInventory();
 
-const debugConsole = document.createElement("div");
 
-debugConsole.id = "debugConsole";
+const debugConsole =
+    document.createElement("div");
 
-debugConsole.style.position = "fixed";
-debugConsole.style.left = "10px";
-debugConsole.style.right = "10px";
-debugConsole.style.bottom = "10px";
-debugConsole.style.height = "45vh";
-debugConsole.style.background = "#111";
-debugConsole.style.color = "#00ff66";
-debugConsole.style.border = "2px solid #00ff66";
-debugConsole.style.padding = "12px";
-debugConsole.style.fontFamily = "Consolas, monospace";
-debugConsole.style.fontSize = "12px";
-debugConsole.style.overflow = "auto";
-debugConsole.style.zIndex = "999999";
-debugConsole.style.display = "none";
-debugConsole.style.whiteSpace = "pre-wrap";
+debugConsole.id =
+    "debugConsole";
 
-document.body.appendChild(debugConsole);
+debugConsole.style.position =
+    "fixed";
+
+debugConsole.style.left =
+    "10px";
+
+debugConsole.style.right =
+    "10px";
+
+debugConsole.style.bottom =
+    "10px";
+
+debugConsole.style.height =
+    "45vh";
+
+debugConsole.style.background =
+    "#111";
+
+debugConsole.style.color =
+    "#00ff66";
+
+debugConsole.style.border =
+    "2px solid #00ff66";
+
+debugConsole.style.padding =
+    "12px";
+
+debugConsole.style.fontFamily =
+    "Consolas, monospace";
+
+debugConsole.style.fontSize =
+    "12px";
+
+debugConsole.style.overflow =
+    "auto";
+
+debugConsole.style.zIndex =
+    "999999";
+
+debugConsole.style.display =
+    "none";
+
+debugConsole.style.whiteSpace =
+    "pre-wrap";
+
+document.body.appendChild(
+    debugConsole
+);
 
 
 async function refreshDebugConsole() {
+
     try {
-        const response = await fetch("/api/debug");
-        const data = await response.json();
+
+        const response =
+            await fetch(
+                "/api/debug"
+            );
+
+        const data =
+            await response.json();
 
         debugConsole.textContent =
             "=== POKEINVENTORY DEBUG ===\n\n" +
@@ -665,6 +1268,7 @@ async function refreshDebugConsole() {
             debugConsole.scrollHeight;
 
     } catch (error) {
+
         debugConsole.textContent =
             "DEBUG ERROR:\n" +
             error;
@@ -672,32 +1276,30 @@ async function refreshDebugConsole() {
 }
 
 
-document.addEventListener("keydown", event => {
-    if (event.key === "]") {
-        if (debugConsole.style.display === "none") {
-            debugConsole.style.display = "block";
-            refreshDebugConsole();
-        } else {
-            debugConsole.style.display = "none";
+document.addEventListener(
+    "keydown",
+    event => {
+
+        if (event.key === "]") {
+
+            if (
+                debugConsole.style.display ===
+                "none"
+            ) {
+
+                debugConsole.style.display =
+                    "block";
+
+                refreshDebugConsole();
+
+            } else {
+
+                debugConsole.style.display =
+                    "none";
+            }
         }
     }
-});
-
-
-const originalFindCard = findCard;
-
-findCard = async function() {
-    console.log(
-        "[PokeInventory] findCard()",
-        cardNumber.value
-    );
-
-    await originalFindCard();
-
-    if (debugConsole.style.display !== "none") {
-        await refreshDebugConsole();
-    }
-};
+);
 </script>
 
 </body>

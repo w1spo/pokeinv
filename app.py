@@ -55,6 +55,12 @@ class InventoryUpdate(BaseModel):
     value: str
 
 
+def normalize(value):
+    return " ".join(
+        str(value).strip().lower().split()
+    )
+
+
 def load_cards():
     cards = {}
 
@@ -67,12 +73,18 @@ def load_cards():
         debug("ERROR: Sets directory does not exist")
         return cards
 
-    csv_files = sorted(SETS_DIR.rglob("*.csv"))
+    csv_files = sorted(
+        SETS_DIR.rglob("*.csv")
+    )
 
-    debug(f"CSV files found: {len(csv_files)}")
+    debug(
+        f"CSV files found: {len(csv_files)}"
+    )
 
     for csv_file in csv_files:
-        relative_path = csv_file.relative_to(SETS_DIR)
+        relative_path = csv_file.relative_to(
+            SETS_DIR
+        )
 
         set_code = csv_file.stem.strip().upper()
 
@@ -109,10 +121,21 @@ def load_cards():
                     if field
                 }
 
-                number_field = field_map.get("number")
-                name_field = field_map.get("name")
-                rarity_field = field_map.get("rarity")
-                set_field = field_map.get("set")
+                number_field = field_map.get(
+                    "number"
+                )
+
+                name_field = field_map.get(
+                    "name"
+                )
+
+                rarity_field = field_map.get(
+                    "rarity"
+                )
+
+                set_field = field_map.get(
+                    "set"
+                )
 
                 if not number_field:
                     debug(
@@ -210,19 +233,19 @@ card_database = load_cards()
 
 
 def find_card_by_code(card_input):
-    value = card_input.strip()
+    value = normalize(card_input)
 
     debug("=" * 60)
-    debug(f"LOOKUP INPUT: '{value}'")
+    debug(
+        f"LOOKUP INPUT: '{value}'"
+    )
 
     parts = value.split()
 
-    debug(f"SPLIT PARTS: {parts}")
-
     if len(parts) != 2:
         debug(
-            f"INVALID INPUT: expected 2 parts, "
-            f"got {len(parts)}"
+            "INVALID EXACT LOOKUP: "
+            "expected SET NUMBER"
         )
 
         return None
@@ -230,46 +253,140 @@ def find_card_by_code(card_input):
     set_code = parts[0].upper()
     card_number = parts[1]
 
-    debug(f"SET CODE: '{set_code}'")
-    debug(f"CARD NUMBER: '{card_number}'")
-
     lookup_key = (
         f"{set_code} {card_number}"
     ).lower()
 
-    debug(f"LOOKUP KEY: '{lookup_key}'")
-
-    card = card_database.get(lookup_key)
+    card = card_database.get(
+        lookup_key
+    )
 
     if card:
-        debug(f"CARD FOUND: {card}")
-
-    else:
-        debug("CARD NOT FOUND")
-
-        matching_keys = [
-            key
-            for key in card_database
-            if key.startswith(
-                f"{set_code.lower()} "
-            )
-        ]
-
         debug(
-            f"Cards available for set "
-            f"'{set_code}': "
-            f"{len(matching_keys)}"
+            f"CARD FOUND: {card}"
         )
-
-        if matching_keys:
-            debug(
-                f"First matching keys: "
-                f"{matching_keys[:10]}"
-            )
+    else:
+        debug(
+            f"CARD NOT FOUND: "
+            f"{lookup_key}"
+        )
 
     debug("=" * 60)
 
     return card
+
+
+def search_cards(query, limit=50):
+    query = normalize(query)
+
+    if not query:
+        return []
+
+    query_parts = query.split()
+
+    results = []
+
+    for card in card_database.values():
+        set_code = normalize(
+            card.get("set_code", "")
+        )
+
+        number = normalize(
+            card.get("number", "")
+        )
+
+        name = normalize(
+            card.get("name", "")
+        )
+
+        rarity = normalize(
+            card.get("rarity", "")
+        )
+
+        set_name = normalize(
+            card.get("set", "")
+        )
+
+        full_code = (
+            f"{set_code} {number}"
+        )
+
+        score = 0
+
+        if query == full_code:
+            score = 1000
+
+        elif query == number:
+            score = 900
+
+        elif query == set_code:
+            score = 800
+
+        elif query == name:
+            score = 700
+
+        elif name.startswith(query):
+            score = 600
+
+        elif full_code.startswith(query):
+            score = 550
+
+        elif set_code.startswith(query):
+            score = 500
+
+        elif number.startswith(query):
+            score = 450
+
+        elif query in name:
+            score = 400
+
+        elif query in set_name:
+            score = 300
+
+        elif query in rarity:
+            score = 200
+
+        else:
+            all_parts_match = all(
+                part in (
+                    full_code,
+                    name,
+                    set_name,
+                    rarity
+                )
+                or part in name
+                or part in full_code
+                or part in set_name
+                or part in rarity
+                for part in query_parts
+            )
+
+            if all_parts_match:
+                score = 100
+
+        if score > 0:
+            results.append(
+                (score, card)
+            )
+
+    results.sort(
+        key=lambda item: (
+            -item[0],
+            item[1].get(
+                "set_code",
+                ""
+            ),
+            item[1].get(
+                "number",
+                ""
+            )
+        )
+    )
+
+    return [
+        card
+        for _, card in results[:limit]
+    ]
 
 
 @app.get("/api/debug")
@@ -277,8 +394,12 @@ async def get_debug():
     return {
         "success": True,
         "logs": DEBUG_LOG,
-        "cards_loaded": len(card_database),
-        "sets_directory": str(SETS_DIR),
+        "cards_loaded": len(
+            card_database
+        ),
+        "sets_directory": str(
+            SETS_DIR
+        ),
     }
 
 
@@ -302,7 +423,33 @@ async def find_card(number: str):
     }
 
 
-@app.get("/", response_class=HTMLResponse)
+@app.get("/api/cards/search")
+async def search_card_database(
+    q: str,
+    limit: int = 50
+):
+    limit = max(
+        1,
+        min(limit, 100)
+    )
+
+    results = search_cards(
+        q,
+        limit
+    )
+
+    return {
+        "success": True,
+        "query": q,
+        "count": len(results),
+        "results": results,
+    }
+
+
+@app.get(
+    "/",
+    response_class=HTMLResponse
+)
 async def index(request: Request):
     return templates.TemplateResponse(
         request=request,
@@ -330,10 +477,14 @@ async def get_inventory():
 
 
 @app.post("/api/inventory")
-async def add_inventory(item: InventoryItem):
+async def add_inventory(
+    item: InventoryItem
+):
     card_input = item.card_number.strip()
 
-    card = find_card_by_code(card_input)
+    card = find_card_by_code(
+        card_input
+    )
 
     if not card:
         return {
@@ -385,7 +536,9 @@ async def add_inventory(item: InventoryItem):
     }
 
 
-@app.patch("/api/inventory/{item_id}")
+@app.patch(
+    "/api/inventory/{item_id}"
+)
 async def update_inventory(
     item_id: str,
     update: InventoryUpdate
@@ -459,8 +612,12 @@ async def update_inventory(
     }
 
 
-@app.delete("/api/inventory/{item_id}")
-async def delete_inventory(item_id: str):
+@app.delete(
+    "/api/inventory/{item_id}"
+)
+async def delete_inventory(
+    item_id: str
+):
     db.collection(
         "inventory"
     ).document(item_id).delete()
