@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>PokeInventory</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: white;
+            color: black;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            margin: 0 0 20px;
+        }
+
+        .form {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+
+        input,
+        select,
+        button {
+            width: 100%;
+            min-height: 38px;
+            padding: 7px;
+            border: 1px solid black;
+            background: white;
+            color: black;
+            font-size: 14px;
+        }
+
+        button {
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: black;
+            color: white;
+        }
+
+        .status {
+            min-height: 20px;
+            margin-bottom: 10px;
+        }
+
+        .table-wrapper {
+            width: 100%;
+            overflow-x: auto;
+            border: 1px solid black;
+        }
+
+        table {
+            width: 100%;
+            min-width: 1050px;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            border: 1px solid black;
+            padding: 0;
+            text-align: left;
+            white-space: nowrap;
+        }
+
+        th {
+            padding: 8px;
+        }
+
+        td.editable {
+            cursor: text;
+            min-width: 100px;
+        }
+
+        td.editable:hover {
+            outline: 2px solid black;
+            outline-offset: -2px;
+        }
+
+        .cell-input {
+            width: 100%;
+            height: 38px;
+            border: 0;
+            padding: 8px;
+            outline: 2px solid black;
+            font-size: 14px;
+            background: white;
+            color: black;
+        }
+
+        .quantity {
+            display: flex;
+            align-items: center;
+            height: 38px;
+        }
+
+        .quantity button {
+            width: 34px;
+            height: 38px;
+            min-height: 38px;
+            padding: 0;
+            border: 0;
+            border-right: 1px solid black;
+        }
+
+        .quantity button:last-child {
+            border-right: 0;
+            border-left: 1px solid black;
+        }
+
+        .quantity-value {
+            width: 45px;
+            text-align: center;
+            user-select: none;
+        }
+
+        .delete-button {
+            width: auto;
+            min-height: 30px;
+            margin: 4px;
+            padding: 4px 10px;
+        }
+
+        @media (max-width: 900px) {
+            body {
+                padding: 10px;
+            }
+
+            .form {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 500px) {
+            .form {
+                grid-template-columns: 1fr;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <h1>PokeInventory</h1>
+
+    <div class="form">
+
+        <input
+            id="cardNumber"
+            type="text"
+            placeholder="Card number e.g. 23/89"
+        >
+
+        <input
+            id="cardName"
+            type="text"
+            placeholder="Card name"
+            readonly
+        >
+
+        <input
+            id="cardSet"
+            type="text"
+            placeholder="Set"
+            readonly
+        >
+
+        <input
+            id="rarity"
+            type="text"
+            placeholder="Rarity"
+            readonly
+        >
+
+        <select id="condition">
+            <option value="NM">NM</option>
+            <option value="LP">LP</option>
+            <option value="MP">MP</option>
+            <option value="HP">HP</option>
+            <option value="DMG">DMG</option>
+        </select>
+
+        <select id="variant">
+            <option value="Normal">Normal</option>
+            <option value="Holo">Holo</option>
+            <option value="Reverse Holo">Reverse Holo</option>
+        </select>
+
+        <input
+            id="quantity"
+            type="number"
+            min="1"
+            value="1"
+            placeholder="Quantity"
+        >
+
+        <input
+            id="price"
+            type="number"
+            min="0"
+            step="0.01"
+            value="0"
+            placeholder="Price"
+        >
+
+        <button onclick="addCard()">ADD</button>
+
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <div class="table-wrapper">
+
+        <table>
+
+            <thead>
+                <tr>
+                    <th>Card Number</th>
+                    <th>Name</th>
+                    <th>Set</th>
+                    <th>Rarity</th>
+                    <th>Condition</th>
+                    <th>Variant</th>
+                    <th>Quantity</th>
+                    <th>Price</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+
+            <tbody id="inventoryBody"></tbody>
+
+        </table>
+
+    </div>
+
+</div>
+
+<script>
+const cardNumber = document.getElementById("cardNumber");
+const cardName = document.getElementById("cardName");
+const cardSet = document.getElementById("cardSet");
+const rarity = document.getElementById("rarity");
+const condition = document.getElementById("condition");
+const variant = document.getElementById("variant");
+const quantity = document.getElementById("quantity");
+const price = document.getElementById("price");
+const statusElement = document.getElementById("status");
+const inventoryBody = document.getElementById("inventoryBody");
+
+let lookupTimeout;
+
+cardNumber.addEventListener("input", () => {
+    clearTimeout(lookupTimeout);
+    lookupTimeout = setTimeout(findCard, 300);
+});
+
+async function findCard() {
+    const value = cardNumber.value.trim();
+
+    if (!value) {
+        cardName.value = "";
+        cardSet.value = "";
+        rarity.value = "";
+        return;
+    }
+
+    try {
+        const response = await fetch(
+            `/api/card?number=${encodeURIComponent(value)}`
+        );
+
+        const data = await response.json();
+
+        if (!data.success) {
+            cardName.value = "";
+            cardSet.value = "";
+            rarity.value = "";
+            statusElement.textContent = "Card not found";
+            return;
+        }
+
+        cardName.value = data.card.name || "";
+        cardSet.value = data.card.set || "";
+        rarity.value = data.card.rarity || "";
+
+        statusElement.textContent = "";
+
+    } catch {
+        statusElement.textContent = "Error finding card";
+    }
+}
+
+async function addCard() {
+    const data = {
+        card_number: cardNumber.value.trim(),
+        condition: condition.value,
+        variant: variant.value,
+        quantity: Number(quantity.value),
+        price: Number(price.value)
+    };
+
+    if (!data.card_number) {
+        statusElement.textContent = "Enter a card number";
+        return;
+    }
+
+    try {
+        const response = await fetch("/api/inventory", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+            statusElement.textContent = result.error;
+            return;
+        }
+
+        statusElement.textContent = "Card added";
+
+        clearForm();
+        await loadInventory();
+
+    } catch {
+        statusElement.textContent = "Error adding card";
+    }
+}
+
+async function updateCell(id, field, value) {
+    try {
+        const response = await fetch(
+            `/api/inventory/${encodeURIComponent(id)}`,
+            {
+                method: "PATCH",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    field: field,
+                    value: String(value)
+                })
+            }
+        );
+
+        const data = await response.json();
+
+        if (!data.success) {
+            statusElement.textContent = data.error;
+            return false;
+        }
+
+        return true;
+
+    } catch {
+        statusElement.textContent = "Error saving";
+        return false;
+    }
+}
+
+function makeEditable(cell, id, field, value) {
+    if (cell.querySelector("input")) {
+        return;
+    }
+
+    const input = document.createElement("input");
+
+    input.className = "cell-input";
+    input.value = value ?? "";
+
+    cell.innerHTML = "";
+    cell.appendChild(input);
+
+    input.focus();
+    input.select();
+
+    let saved = false;
+
+    async function save() {
+        if (saved) {
+            return;
+        }
+
+        saved = true;
+
+        const newValue = input.value;
+
+        const success = await updateCell(
+            id,
+            field,
+            newValue
+        );
+
+        if (success) {
+            cell.textContent = newValue;
+        } else {
+            cell.textContent = value ?? "";
+        }
+    }
+
+    input.addEventListener("blur", save);
+
+    input.addEventListener("keydown", event => {
+        if (event.key === "Enter") {
+            input.blur();
+        }
+
+        if (event.key === "Escape") {
+            saved = true;
+            cell.textContent = value ?? "";
+        }
+    });
+}
+
+async function changeQuantity(id, currentQuantity, amount, valueElement) {
+    const newQuantity = Math.max(
+        0,
+        Number(currentQuantity) + amount
+    );
+
+    const success = await updateCell(
+        id,
+        "quantity",
+        newQuantity
+    );
+
+    if (success) {
+        valueElement.textContent = newQuantity;
+    }
+}
+
+function createEditableCell(row, item, field) {
+    const cell = document.createElement("td");
+
+    cell.className = "editable";
+
+    cell.textContent = item[field] ?? "";
+
+    cell.addEventListener("click", () => {
+        makeEditable(
+            cell,
+            item.id,
+            field,
+            item[field] ?? ""
+        );
+    });
+
+    row.appendChild(cell);
+}
+
+function createQuantityCell(row, item) {
+    const cell = document.createElement("td");
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "quantity";
+
+    const minus = document.createElement("button");
+    minus.textContent = "−";
+
+    const value = document.createElement("div");
+    value.className = "quantity-value";
+    value.textContent = item.quantity;
+
+    const plus = document.createElement("button");
+    plus.textContent = "+";
+
+    minus.addEventListener("click", () => {
+        changeQuantity(
+            item.id,
+            Number(value.textContent),
+            -1,
+            value
+        );
+    });
+
+    plus.addEventListener("click", () => {
+        changeQuantity(
+            item.id,
+            Number(value.textContent),
+            1,
+            value
+        );
+    });
+
+    wrapper.appendChild(minus);
+    wrapper.appendChild(value);
+    wrapper.appendChild(plus);
+
+    cell.appendChild(wrapper);
+
+    row.appendChild(cell);
+}
+
+async function loadInventory() {
+    try {
+        const response = await fetch("/api/inventory");
+        const data = await response.json();
+
+        inventoryBody.innerHTML = "";
+
+        if (!data.success) {
+            statusElement.textContent = "Could not load inventory";
+            return;
+        }
+
+        for (const item of data.inventory) {
+            const row = document.createElement("tr");
+
+            createEditableCell(
+                row,
+                item,
+                "card_number"
+            );
+
+            createEditableCell(
+                row,
+                item,
+                "name"
+            );
+
+            createEditableCell(
+                row,
+                item,
+                "set"
+            );
+
+            createEditableCell(
+                row,
+                item,
+                "rarity"
+            );
+
+            createEditableCell(
+                row,
+                item,
+                "condition"
+            );
+
+            createEditableCell(
+                row,
+                item,
+                "variant"
+            );
+
+            createQuantityCell(row, item);
+
+            createEditableCell(
+                row,
+                item,
+                "price"
+            );
+
+            const actions = document.createElement("td");
+
+            const deleteButton = document.createElement("button");
+
+            deleteButton.className = "delete-button";
+            deleteButton.textContent = "DELETE";
+
+            deleteButton.addEventListener("click", () => {
+                deleteCard(item.id);
+            });
+
+            actions.appendChild(deleteButton);
+            row.appendChild(actions);
+
+            inventoryBody.appendChild(row);
+        }
+
+    } catch {
+        statusElement.textContent = "Error loading inventory";
+    }
+}
+
+async function deleteCard(id) {
+    const response = await fetch(
+        `/api/inventory/${encodeURIComponent(id)}`,
+        {
+            method: "DELETE"
+        }
+    );
+
+    const data = await response.json();
+
+    if (data.success) {
+        await loadInventory();
+    }
+}
+
+function clearForm() {
+    cardNumber.value = "";
+    cardName.value = "";
+    cardSet.value = "";
+    rarity.value = "";
+    quantity.value = "1";
+    price.value = "0";
+}
+
+loadInventory();
+
+const debugConsole = document.createElement("div");
+
+debugConsole.id = "debugConsole";
+
+debugConsole.style.position = "fixed";
+debugConsole.style.left = "10px";
+debugConsole.style.right = "10px";
+debugConsole.style.bottom = "10px";
+debugConsole.style.height = "45vh";
+debugConsole.style.background = "#111";
+debugConsole.style.color = "#00ff66";
+debugConsole.style.border = "2px solid #00ff66";
+debugConsole.style.padding = "12px";
+debugConsole.style.fontFamily = "Consolas, monospace";
+debugConsole.style.fontSize = "12px";
+debugConsole.style.overflow = "auto";
+debugConsole.style.zIndex = "999999";
+debugConsole.style.display = "none";
+debugConsole.style.whiteSpace = "pre-wrap";
+
+document.body.appendChild(debugConsole);
+
+
+async function refreshDebugConsole() {
+    try {
+        const response = await fetch("/api/debug");
+        const data = await response.json();
+
+        debugConsole.textContent =
+            "=== POKEINVENTORY DEBUG ===\n\n" +
+            "Cards loaded: " +
+            data.cards_loaded +
+            "\n\n" +
+            data.logs.join("\n");
+
+        debugConsole.scrollTop =
+            debugConsole.scrollHeight;
+
+    } catch (error) {
+        debugConsole.textContent =
+            "DEBUG ERROR:\n" +
+            error;
+    }
+}
+
+
+document.addEventListener("keydown", event => {
+    if (event.key === "]") {
+        if (debugConsole.style.display === "none") {
+            debugConsole.style.display = "block";
+            refreshDebugConsole();
+        } else {
+            debugConsole.style.display = "none";
+        }
+    }
+});
+
+
+const originalFindCard = findCard;
+
+findCard = async function() {
+    console.log(
+        "[PokeInventory] findCard()",
+        cardNumber.value
+    );
+
+    await originalFindCard();
+
+    if (debugConsole.style.display !== "none") {
+        await refreshDebugConsole();
+    }
+};
+</script>
+
+</body>
+</html>
